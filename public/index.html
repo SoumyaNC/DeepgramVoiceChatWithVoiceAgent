@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Voice Chat Assistant</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f4f4f4;
+      padding: 20px;
+    }
+    #chat {
+      max-width: 600px;
+      margin: auto;
+      background: white;
+      border-radius: 10px;
+      padding: 20px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+      height: 70vh;
+      overflow-y: auto;
+    }
+    .msg {
+      margin-bottom: 12px;
+      display: flex;
+    }
+    .user {
+      justify-content: flex-end;
+    }
+    .user .bubble {
+      background-color: #dcf8c6;
+      align-self: flex-end;
+    }
+    .agent {
+      justify-content: flex-start;
+    }
+    .agent .bubble {
+      background-color: #e2e2e2;
+      align-self: flex-start;
+    }
+    .bubble {
+      padding: 10px;
+      border-radius: 10px;
+      max-width: 70%;
+      word-wrap: break-word;
+    }
+    #start, #stop {
+      padding: 10px 20px;
+      margin: 10px 5px;
+      font-size: 16px;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="chat"></div>
+  <div style="text-align: center;">
+    <button id="start">🎤 Start Talking</button>
+    <button id="stop" disabled>🔴 Disconnect</button>
+  </div>
+
+  <script>
+    const chat = document.getElementById('chat');
+    const socket = new WebSocket('ws://localhost:3000');
+    let audioContext;
+    let userInteracted = false;
+    let processor, micStream, source, mediaStream;
+
+  function scrollToBottom() {
+        chat.scrollTop = chat.scrollHeight;
+      }
+
+    function appendMessage(text, sender, typingEffect = false) {
+      const msg = document.createElement('div');
+      msg.className = `msg ${sender}`;
+      const bubble = document.createElement('div');
+      bubble.className = 'bubble';
+      msg.appendChild(bubble);
+      chat.appendChild(msg);
+      scrollToBottom();
+
+      if (typingEffect) {
+        let index = 0;
+        const interval = setInterval(() => {
+          bubble.textContent += text.charAt(index);
+          index++;
+          scrollToBottom();
+          if (index >= text.length) clearInterval(interval);
+        }, 30); // Typing speed (ms per character)
+      } else {
+        bubble.textContent = text;
+      }
+    }
+
+    document.getElementById('start').onclick = async () => {
+      userInteracted = true;
+      audioContext = new AudioContext();
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaStream = stream;
+      document.getElementById('start').disabled = true;
+      document.getElementById('stop').disabled = false;
+      const worklet = await audioContext.audioWorklet.addModule('processor.js');
+      const source = audioContext.createMediaStreamSource(stream);
+      const processor = new AudioWorkletNode(audioContext, 'audio-capture');
+      source.connect(processor).connect(audioContext.destination);
+
+      processor.port.onmessage = (event) => {
+        if (socket.readyState === WebSocket.OPEN) {
+          socket.send(event.data);
+        }
+      };
+    };
+
+    document.getElementById('stop').onclick = () => {
+      if (processor) processor.disconnect();
+      if (source) source.disconnect();
+      if (mediaStream) {
+        mediaStream.getTracks().forEach(track => track.stop());
+      }
+      if (socket.readyState === WebSocket.OPEN) {
+        socket.close();
+        appendMessage("🔌 Disconnected from assistant.", 'agent');
+      }
+
+      document.getElementById('start').disabled = false;
+      document.getElementById('stop').disabled = true;
+    };
+    socket.onopen = async () => {
+      // 100ms of silence (Int16 PCM @ 48kHz)
+      const silentFrame = new Int16Array(4800).buffer; 
+      socket.send(silentFrame); // send silence immediately
+    };
+    socket.onmessage = async (event) => {
+      console.log(event);
+      if (typeof event.data === 'string') {
+        const data = JSON.parse(event.data);
+        if (data.type === 'QnA') {
+          appendMessage(data.question, 'user');
+          appendMessage(data.answer, 'agent',true);
+        }
+        // if (data.type === 'ConversationText' && data.role === 'user') {
+        //   appendMessage(data.content, 'user');
+        // }
+        // if (data.type === 'ConversationText' && data.role === 'assistant') {
+        //   appendMessage(data.content, 'agent');
+        // }
+      } else if (userInteracted && audioContext) {
+        try {
+          const arrayBuffer = await event.data.arrayBuffer();
+          const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+          const source = audioContext.createBufferSource();
+          source.buffer = audioBuffer;
+          source.connect(audioContext.destination);
+          source.start();
+        } catch (err) {
+          console.warn('Audio decode/playback failed:', err.message);
+        }
+      }
+    };
+  </script>
+
+</body>
+</html>
