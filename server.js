@@ -210,7 +210,7 @@ wss.on('connection', function connection(clientSocket) {
      // TTS the answer
       try {
         const ttsRes = await fetch(
-          'https://api.deepgram.com/v1/speak?model=model=aura-2-saturn-en&encoding=mp3',
+          'https://api.deepgram.com/v1/speak?model=aura-2-thalia-en&encoding=mp3',
           {
             method: 'POST',
             headers: {
@@ -235,7 +235,7 @@ wss.on('connection', function connection(clientSocket) {
     {
       console.log('Hi Welcome')
               
-          const welcomeText = "Hi! You are talking to the custom voice agent. I'm there to help.";
+          const welcomeText = "Hi! My name is Stella. I'm there to help.";
           clientSocket.send(JSON.stringify({
             type: 'QnA',
             question: '',
@@ -245,7 +245,7 @@ wss.on('connection', function connection(clientSocket) {
 
           try {
             const ttsRes = await fetch(
-              'https://api.deepgram.com/v1/speak?model=model=aura-2-saturn-en&encoding=mp3',
+              'https://api.deepgram.com/v1/speak?model=aura-2-thalia-en&encoding=mp3',
               {
                 method: 'POST',
                 headers: {
