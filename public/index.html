@@ -42,6 +42,7 @@
       border-radius: 10px;
       max-width: 70%;
       word-wrap: break-word;
+      white-space: pre-wrap;
     }
     #start, #stop {
       padding: 10px 20px;
@@ -54,22 +55,19 @@
 
   <div id="chat"></div>
   <div style="text-align: center;">
-    <button id="start">🎤 Start Talking</button>
+    <button id="start">🎤 Connect</button>
     <button id="stop" disabled>🔴 Disconnect</button>
   </div>
 
   <script>
     const chat = document.getElementById('chat');
-    const socket = new WebSocket('ws://localhost:3000');
-    let audioContext;
-    let userInteracted = false;
-    let processor, micStream, source, mediaStream;
+    let socket, audioContext, processor, mediaStream, source;
 
-  function scrollToBottom() {
-        chat.scrollTop = chat.scrollHeight;
-      }
+    function scrollToBottom() {
+      chat.scrollTop = chat.scrollHeight;
+    }
 
-    function appendMessage(text, sender, typingEffect = false) {
+    function appendMessage(text, sender, typingEffect = false, callback = null) {
       const msg = document.createElement('div');
       msg.className = `msg ${sender}`;
       const bubble = document.createElement('div');
@@ -84,77 +82,89 @@
           bubble.textContent += text.charAt(index);
           index++;
           scrollToBottom();
-          if (index >= text.length) clearInterval(interval);
-        }, 30); // Typing speed (ms per character)
+          if (index >= text.length) {
+            clearInterval(interval);
+            if (callback) callback();
+          }
+        }, 30);
       } else {
         bubble.textContent = text;
+        if (callback) callback();
       }
     }
 
     document.getElementById('start').onclick = async () => {
-      userInteracted = true;
-      audioContext = new AudioContext();
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      mediaStream = stream;
-      document.getElementById('start').disabled = true;
-      document.getElementById('stop').disabled = false;
-      const worklet = await audioContext.audioWorklet.addModule('processor.js');
-      const source = audioContext.createMediaStreamSource(stream);
-      const processor = new AudioWorkletNode(audioContext, 'audio-capture');
-      source.connect(processor).connect(audioContext.destination);
+      const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+      socket = new WebSocket(`${protocol}//${location.host}`);
+      socket.binaryType = 'arraybuffer';
 
-      processor.port.onmessage = (event) => {
-        if (socket.readyState === WebSocket.OPEN) {
-          socket.send(event.data);
+      socket.onopen = async () => {
+        audioContext = new AudioContext();
+        mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+        await audioContext.audioWorklet.addModule('processor.js');
+        source = audioContext.createMediaStreamSource(mediaStream);
+        processor = new AudioWorkletNode(audioContext, 'audio-capture');
+        source.connect(processor).connect(audioContext.destination);
+
+        processor.port.onmessage = (event) => {
+          if (socket.readyState === WebSocket.OPEN) {
+            socket.send(event.data);
+          }
+        };
+
+        document.getElementById('start').disabled = true;
+        document.getElementById('stop').disabled = false;
+      };
+
+      socket.onmessage = async (event) => {
+        if (typeof event.data === 'string') {
+          const data = JSON.parse(event.data);
+
+          if (data.type === 'QnA') {
+            if (data.question != '')
+              appendMessage(data.question, 'user');
+            if (data.answer != '' )
+              appendMessage(data.answer, 'agent', true, () => {
+            if (data.audioUrl) {
+                const audio = new Audio(data.audioUrl);
+                audio.play();
+              }
+            });
+          }
+
+          if (data.type === 'ConversationText' && data.role === 'user') {
+            appendMessage(data.content, 'user');
+          }
+
+          if (data.type === 'ConversationText' && data.role === 'assistant') {
+            appendMessage(data.content, 'agent');
+          }
+        } else {
+          try {
+            const audioBuffer = await audioContext.decodeAudioData(event.data);
+            const sourceNode = audioContext.createBufferSource();
+            sourceNode.buffer = audioBuffer;
+            sourceNode.connect(audioContext.destination);
+            sourceNode.start();
+          } catch (err) {
+            console.warn('Audio decode/playback failed:', err.message);
+          }
         }
+      };
+
+      socket.onclose = () => {
+        appendMessage("🔌 Disconnected from assistant.", 'agent');
+        document.getElementById('start').disabled = false;
+        document.getElementById('stop').disabled = true;
       };
     };
 
     document.getElementById('stop').onclick = () => {
       if (processor) processor.disconnect();
       if (source) source.disconnect();
-      if (mediaStream) {
-        mediaStream.getTracks().forEach(track => track.stop());
-      }
-      if (socket.readyState === WebSocket.OPEN) {
-        socket.close();
-        appendMessage("🔌 Disconnected from assistant.", 'agent');
-      }
-
-      document.getElementById('start').disabled = false;
-      document.getElementById('stop').disabled = true;
-    };
-    socket.onopen = async () => {
-      // 100ms of silence (Int16 PCM @ 48kHz)
-      const silentFrame = new Int16Array(4800).buffer; 
-      socket.send(silentFrame); // send silence immediately
-    };
-    socket.onmessage = async (event) => {
-      console.log(event);
-      if (typeof event.data === 'string') {
-        const data = JSON.parse(event.data);
-        if (data.type === 'QnA') {
-          appendMessage(data.question, 'user');
-          appendMessage(data.answer, 'agent',true);
-        }
-        // if (data.type === 'ConversationText' && data.role === 'user') {
-        //   appendMessage(data.content, 'user');
-        // }
-        // if (data.type === 'ConversationText' && data.role === 'assistant') {
-        //   appendMessage(data.content, 'agent');
-        // }
-      } else if (userInteracted && audioContext) {
-        try {
-          const arrayBuffer = await event.data.arrayBuffer();
-          const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-          const source = audioContext.createBufferSource();
-          source.buffer = audioBuffer;
-          source.connect(audioContext.destination);
-          source.start();
-        } catch (err) {
-          console.warn('Audio decode/playback failed:', err.message);
-        }
-      }
+      if (mediaStream) mediaStream.getTracks().forEach(track => track.stop());
+      if (socket && socket.readyState === WebSocket.OPEN) socket.close();
     };
   </script>
 
