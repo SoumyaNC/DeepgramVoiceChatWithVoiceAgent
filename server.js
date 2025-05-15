@@ -8,6 +8,8 @@ const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
 
 
+
+
 const DEEPGRAM_API_KEY = process.env.DEEPGRAM_API_KEY;
 // Sample Q&A list
 const qna = {
@@ -37,13 +39,49 @@ wss.on('connection', function connection(clientSocket) {
 
   
 
+  // clientSocket.on('message', async (msg) => {
+  //   // 🟡 Handle special welcome trigger
+  //   console.log(typeof msg)
+  //   if (typeof msg  ===  'string')
+  //       console.log(typeof msg)
+  //   if (typeof msg === 'string' && msg === '__welcome__') {
+      
+  //     const welcomeText = "Hi! You can start talking now. I'm ready to help.";
+
+  //     clientSocket.send(JSON.stringify({
+  //       type: 'QnA',
+  //       question: '', // Important: not a real user message
+  //       answer: welcomeText
+  //     }));
+
+  //     const ttsRes = await fetch(
+  //       'https://api.deepgram.com/v1/speak?model=aura-2-thalia-en&encoding=mp3',
+  //       {
+  //         method: 'POST',
+  //         headers: {
+  //           Authorization: `Token ${DEEPGRAM_API_KEY}`,
+  //           'Content-Type': 'application/json'
+  //         },
+  //         body: JSON.stringify({ text: welcomeText })
+  //       }
+  //     );
+
+  //     const ttsAudio = await ttsRes.arrayBuffer();
+  //     clientSocket.send(ttsAudio);
+  //     return; // Done, don’t pass to Deepgram
+  //   }
+
+  //   // 🔁 Normal audio handling
+  //   if (deepgramSocket.readyState === WebSocket.OPEN) {
+  //     deepgramSocket.send(msg);
+  //   }
+  //   });
 
 
-
-  const deepgramSocket = new WebSocket('wss://agent.deepgram.com/v1/agent/converse', {
-    headers: {
-      Authorization: `Token ${DEEPGRAM_API_KEY}`
-    }
+    const deepgramSocket = new WebSocket('wss://agent.deepgram.com/v1/agent/converse', {
+      headers: {
+        Authorization: `Token ${DEEPGRAM_API_KEY}`
+      }
   });
 
   deepgramSocket.on('open', () => {
@@ -93,7 +131,7 @@ wss.on('connection', function connection(clientSocket) {
     try {
       const parsed = JSON.parse(msg);
       console.log('Deepgram event:', parsed);
-
+      
     //   if (parsed.type === 'transcript') {
         
     //     const question = parsed.text.toLowerCase().trim();
@@ -172,7 +210,7 @@ wss.on('connection', function connection(clientSocket) {
      // TTS the answer
       try {
         const ttsRes = await fetch(
-          'https://api.deepgram.com/v1/speak?model=aura-2-andromeda-en&encoding=mp3',
+          'https://api.deepgram.com/v1/speak?model=aura-2-thalia-en&encoding=mp3',
           {
             method: 'POST',
             headers: {
@@ -195,35 +233,36 @@ wss.on('connection', function connection(clientSocket) {
     }
     else if (parsed.type === 'Welcome')
     {
-        //       (async () => {
-        //   const welcomeText = "Hi! You can start talking now. I'm ready to help.";
-        //   clientSocket.send(JSON.stringify({
-        //     type: 'QnA',
-        //     question: '',
-        //     answer: welcomeText,
-        //     welcomeMsg : true
-        //   }));
+      console.log('Hi Welcome')
+              
+          const welcomeText = "Hi! You are talking to the custom voice agent. I'm there to help.";
+          clientSocket.send(JSON.stringify({
+            type: 'QnA',
+            question: '',
+            answer: welcomeText,
+            welcomeMsg : true
+          }));
 
-        //   try {
-        //     const ttsRes = await fetch(
-        //       'https://api.deepgram.com/v1/speak?model=aura-2-thalia-en&encoding=mp3',
-        //       {
-        //         method: 'POST',
-        //         headers: {
-        //           Authorization: `Token ${DEEPGRAM_API_KEY}`,
-        //           'Content-Type': 'application/json'
-        //         },
-        //         body: JSON.stringify({ text: welcomeText })
-        //       }
-        //     );
+          try {
+            const ttsRes = await fetch(
+              'https://api.deepgram.com/v1/speak?model=aura-2-thalia-en&encoding=mp3',
+              {
+                method: 'POST',
+                headers: {
+                  Authorization: `Token ${DEEPGRAM_API_KEY}`,
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ text: welcomeText })
+              }
+            );
 
-        //     const ttsAudio = await ttsRes.arrayBuffer();
-        //     clientSocket.send(ttsAudio);
-        //     console.log('👋 Sent welcome message audio');
-        //   } catch (err) {
-        //     console.error('❌ TTS error on welcome message:', err);
-        //   }
-        // })();
+            const ttsAudio = await ttsRes.arrayBuffer();
+            clientSocket.send(ttsAudio);
+            console.log('👋 Sent welcome message audio');
+          } catch (err) {
+            console.error('❌ TTS error on welcome message:', err);
+          }
+        
     }
     else
     {
