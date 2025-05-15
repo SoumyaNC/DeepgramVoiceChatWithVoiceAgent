@@ -34,6 +34,12 @@ app.post('/think', (req, res) => {
 wss.on('connection', function connection(clientSocket) {
   console.log('Frontend connected');
 
+
+  
+
+
+
+
   const deepgramSocket = new WebSocket('wss://agent.deepgram.com/v1/agent/converse', {
     headers: {
       Authorization: `Token ${DEEPGRAM_API_KEY}`
@@ -86,7 +92,7 @@ wss.on('connection', function connection(clientSocket) {
   deepgramSocket.on('message', async(msg) => {
     try {
       const parsed = JSON.parse(msg);
-      //console.log('Deepgram event:', parsed);
+      console.log('Deepgram event:', parsed);
 
     //   if (parsed.type === 'transcript') {
         
@@ -105,21 +111,66 @@ wss.on('connection', function connection(clientSocket) {
         const question = parsed.content.toLowerCase().trim();
         console.log('User Question: ', question);
         const transcript=question
-        const result = await fetch("http://localhost:5001/match", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ transcript }),
-        })
-        .then(res => res.json());
-        console.log(result)
-        const answer = result.answer || "Sorry, I don't know the answer to that yet.";
+        let answer=''
+        // const result = await fetch("http://localhost:5001/match", {
+        //   method: "POST",
+        //   headers: { "Content-Type": "application/json" },
+        //   body: JSON.stringify({ transcript }),
+        // })
+        // .then(res => res.json());
+        // console.log(result)
+        // const answer = result.answer || "Sorry, I don't know the answer to that yet.";
          // 🎯 Send both question and answer to frontend
         clientSocket.send(JSON.stringify({
           type: 'QnA',
           question,
           answer
         }));
-        try {
+      //   try {
+      //   const ttsRes = await fetch(
+      //     'https://api.deepgram.com/v1/speak?model=aura-2-thalia-en&encoding=mp3',
+      //     {
+      //       method: 'POST',
+      //       headers: {
+      //         Authorization: `Token ${DEEPGRAM_API_KEY}`,
+      //         'Content-Type': 'application/json'
+      //       },
+      //       // body: JSON.stringify({ text: answer })
+      //       body: JSON.stringify({ text: answer })
+      //     }
+      //   );
+
+      //   const ttsAudio = await ttsRes.arrayBuffer();
+      //   clientSocket.send(ttsAudio);
+      //   console.log('🔊 Sent TTS audio');
+      // } catch (err) {
+      //   //console.error('❌ TTS error:', err);
+      // }
+
+
+
+        // const answer = qna[question] || "Sorry, I didn't understand that.";
+        // console.log('User answer: ', answer);
+        // const reply = {
+        //     type: 'Response',
+        //     text: answer
+        // };
+
+        // deepgramSocket.send(JSON.stringify(reply));
+
+
+
+    } 
+    else if (parsed.type === 'ConversationText' && parsed.role === 'assistant' || parsed.type === 'AgentAudioDone' ) {
+      const answer = parsed.content.toLowerCase().trim();
+      let question=''
+      clientSocket.send(JSON.stringify({
+          type: 'QnA',
+          question,
+          answer
+        }));
+     // TTS the answer
+      try {
         const ttsRes = await fetch(
           'https://api.deepgram.com/v1/speak?model=aura-2-andromeda-en&encoding=mp3',
           {
@@ -141,48 +192,46 @@ wss.on('connection', function connection(clientSocket) {
       }
 
 
+    }
+    else if (parsed.type === 'Welcome')
+    {
+        //       (async () => {
+        //   const welcomeText = "Hi! You can start talking now. I'm ready to help.";
+        //   clientSocket.send(JSON.stringify({
+        //     type: 'QnA',
+        //     question: '',
+        //     answer: welcomeText,
+        //     welcomeMsg : true
+        //   }));
 
-        // const answer = qna[question] || "Sorry, I didn't understand that.";
-        // console.log('User answer: ', answer);
-        // const reply = {
-        //     type: 'Response',
-        //     text: answer
-        // };
+        //   try {
+        //     const ttsRes = await fetch(
+        //       'https://api.deepgram.com/v1/speak?model=aura-2-thalia-en&encoding=mp3',
+        //       {
+        //         method: 'POST',
+        //         headers: {
+        //           Authorization: `Token ${DEEPGRAM_API_KEY}`,
+        //           'Content-Type': 'application/json'
+        //         },
+        //         body: JSON.stringify({ text: welcomeText })
+        //       }
+        //     );
 
-        // deepgramSocket.send(JSON.stringify(reply));
-
-
-
-    } 
-    else if (parsed.type === 'ConversationText' && parsed.role === 'assistant' || parsed.type === 'AgentAudioDone' ) {
-      //const answer = parsed.content.toLowerCase().trim();
-    //  // TTS the answer
-    //   try {
-    //     const ttsRes = await fetch(
-    //       'https://api.deepgram.com/v1/speak?model=aura-2-andromeda-en&encoding=mp3',
-    //       {
-    //         method: 'POST',
-    //         headers: {
-    //           Authorization: `Token ${DEEPGRAM_API_KEY}`,
-    //           'Content-Type': 'application/json'
-    //         },
-    //         // body: JSON.stringify({ text: answer })
-    //         body: JSON.stringify({ text: answer })
-    //       }
-    //     );
-
-    //     const ttsAudio = await ttsRes.arrayBuffer();
-    //     clientSocket.send(ttsAudio);
-    //     console.log('🔊 Sent TTS audio');
-    //   } catch (err) {
-    //     //console.error('❌ TTS error:', err);
-    //   }
-
-
+        //     const ttsAudio = await ttsRes.arrayBuffer();
+        //     clientSocket.send(ttsAudio);
+        //     console.log('👋 Sent welcome message audio');
+        //   } catch (err) {
+        //     console.error('❌ TTS error on welcome message:', err);
+        //   }
+        // })();
     }
     else
     {
-      console.log('Deepgram event:', parsed);
+      //console.log('Deepgram event:', parsed);
+
+
+
+
     }
       //clientSocket.send(msg);
     } 
@@ -208,6 +257,7 @@ wss.on('connection', function connection(clientSocket) {
   });
 });
 
-server.listen(3000, () => {
-  console.log('Server running at http://localhost:3000');
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
 });
