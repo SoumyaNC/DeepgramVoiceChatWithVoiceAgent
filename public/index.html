@@ -133,8 +133,9 @@
         source.connect(processor).connect(audioContext.destination);
         socket.send('__welcome__');
         processor.port.onmessage = (event) => {
-            console.log("🎙️ Received audio chunk:", event.data);
+            //console.log("🎙️ Received audio chunk:", event.data);
           if (socket.readyState === WebSocket.OPEN) {
+            console.log('Sending Data')
             socket.send(event.data);
           }
           
