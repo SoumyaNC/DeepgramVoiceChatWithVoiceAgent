@@ -123,13 +123,17 @@
       socket.onopen = async () => {
         audioContext = new AudioContext();
         mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        console.log("🎤 Mic access granted:", mediaStream); 
+        await audioContext.audioWorklet.addModule('processor.js')
+        .then(() => console.log("✅ processor.js loaded"))
+        .catch(err => console.error("❌ processor.js failed:", err));
 
-        await audioContext.audioWorklet.addModule('processor.js');
         source = audioContext.createMediaStreamSource(mediaStream);
         processor = new AudioWorkletNode(audioContext, 'audio-capture');
         source.connect(processor).connect(audioContext.destination);
         socket.send('__welcome__');
         processor.port.onmessage = (event) => {
+            console.log("🎙️ Received audio chunk:", event.data);
           if (socket.readyState === WebSocket.OPEN) {
             socket.send(event.data);
           }
