@@ -1,0 +1,59 @@
+As of now, for testing purposes, the application has been designed to answer from a fixed set of questions and answer (stored in JSON format) rather than using any external or custom LLM. 
+
+We are capturing the transcribed text (check the below code) and sending it to our custom python endpoint to find a matching answer from the JSON file using cosine similarity.  We are then passing the answer to speak endpoint and sending the audio output back to the browser.  
+
+ 
+
+We have deliberately commented out the think and speak setting as we are not using LLM to answer the question. Can we use the converse API’s TTS output with some static data (question and answer)? If yes, what will be the think->provider? 
+
+ 
+
+deepgramSocket.on('message', async(msg) => { 
+
+    try { 
+
+      const parsed = JSON.parse(msg); 
+
+      console.log('Deepgram event:', parsed); 
+
+       
+
+      if (parsed.type === 'ConversationText' && parsed.role === 'user') { 
+
+        const question = parsed.content.toLowerCase().trim(); 
+
+ 
+
+ 
+
+//  speak: { 
+
+      //     provider: { 
+
+      //       type: 'deepgram', 
+
+      //       model: 'aura-2-thalia-en' 
+
+      //     } 
+
+      //   }, 
+
+      //   think: { 
+
+      //     provider: { 
+
+      //       type: , 
+
+      //       url: 'h' 
+
+      //     } 
+
+      //      
+
+ 
+
+	 
+
+ 
+
+          
